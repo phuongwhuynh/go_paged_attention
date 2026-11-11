@@ -19,7 +19,7 @@ type Config struct {
 // block Blocks[i].
 type Sequence struct {
 	ID        int
-	Blocks    []int // the block table
+	Blocks    []int // the block table (logical->physical mapping)
 	NumTokens int
 }
 
@@ -27,9 +27,9 @@ type Sequence struct {
 // [block][slot][head][dim] in one flat slice each.
 type Cache struct {
 	Cfg   Config
-	K, V  []float32
-	alloc *block.Allocator
-	seqs  map[int]*Sequence
+	K, V  []float32         // physical memory for keys and values (flat slices of [block][slot][head][dim])
+	alloc *block.Allocator  // which physical blocks are free and how many references each has (shared between sequences)
+	seqs  map[int]*Sequence // map of sequence IDs to sequences
 }
 
 func New(cfg Config) *Cache {
@@ -109,7 +109,8 @@ func (c *Cache) copyOnWrite(s *Sequence) error {
 	return nil
 }
 
-// Fork creates a new sequence sharing all of parent's blocks (no copying).
+// Fork creates a new sequence sharing all of parent's blocks
+// shallow copy of physical blocks (bump reference counts), but deep copy of the logical block table.
 func (c *Cache) Fork(parentID, childID int) (*Sequence, error) {
 	p, ok := c.seqs[parentID]
 	if !ok {
