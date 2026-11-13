@@ -1,5 +1,5 @@
-// Command demo simulates a few sequences decoding into a shared paged KV
-// cache and prints how blocks are laid out.
+// Command demo decodes a few sequences into one paged cache and prints
+// their block tables.
 package main
 
 import (
@@ -10,6 +10,7 @@ import (
 	"go_paged_attention/internal/kvcache"
 )
 
+// main builds the cache, decodes and forks, then prints the result.
 func main() {
 	cfg := kvcache.Config{NumBlocks: 16, BlockSize: 4, NumHeads: 2, HeadDim: 8}
 	stride := cfg.NumHeads * cfg.HeadDim
@@ -27,20 +28,20 @@ func main() {
 	for id := range 3 {
 		c.AddSequence(id)
 	}
-	// Decode round-robin, the way a batching server would.
+	// Take turns, like a server batching several requests.
 	for step := range 10 {
 		for id := range 3 {
 			if step < lengths[id] {
-				if err := c.Append(id, vec(), vec()); err != nil {
+				if err := c.Append(id, 0, vec(), vec()); err != nil {
 					panic(err)
 				}
 			}
 		}
 	}
 
-	// Beam-search style fork: shares blocks until it writes.
+	// Fork shares seq 0's blocks; the append then copies the last one.
 	c.Fork(0, 3)
-	c.Append(3, vec(), vec())
+	c.Append(3, 0, vec(), vec())
 
 	for id := range 4 {
 		s := c.Sequence(id)

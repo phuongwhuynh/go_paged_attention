@@ -8,6 +8,7 @@ import (
 	"go_paged_attention/internal/kvcache"
 )
 
+// randVec returns n random values in [-1, 1).
 func randVec(r *rand.Rand, n int) []float32 {
 	v := make([]float32, n)
 	for i := range v {
@@ -16,7 +17,7 @@ func randVec(r *rand.Rand, n int) []float32 {
 	return v
 }
 
-// Paged attention must give the same answer as attention over contiguous K/V.
+// Paged must match Naive even when a sequence's blocks are scattered.
 func TestPagedMatchesNaive(t *testing.T) {
 	cfg := kvcache.Config{NumBlocks: 16, BlockSize: 4, NumHeads: 2, HeadDim: 8}
 	stride := cfg.NumHeads * cfg.HeadDim
@@ -31,10 +32,10 @@ func TestPagedMatchesNaive(t *testing.T) {
 	for range numTokens {
 		k, v := randVec(r, stride), randVec(r, stride)
 		keys, values = append(keys, k...), append(values, v...)
-		if err := c.Append(0, k, v); err != nil {
+		if err := c.Append(0, 0, k, v); err != nil {
 			t.Fatal(err)
 		}
-		if err := c.Append(1, randVec(r, stride), randVec(r, stride)); err != nil {
+		if err := c.Append(1, 0, randVec(r, stride), randVec(r, stride)); err != nil {
 			t.Fatal(err)
 		}
 	}
